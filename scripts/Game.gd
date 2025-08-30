@@ -4,14 +4,15 @@ extends Node2D
 @onready var player_name_label = $UI/MarginContainer/VBoxContainer/TopBar/PlayerStats/PlayerNameLabel
 @onready var zone_name_label = $UI/MarginContainer/VBoxContainer/TopBar/PlayerStats/ZoneNameLabel
 @onready var essence_label = $UI/MarginContainer/VBoxContainer/TopBar/PlayerStats/EssenceLabel
-@onready var upgrade_power_button = $UI/MarginContainer/VBoxContainer/TopBar/PlayerStats/UpgradePowerButton
 @onready var monster_stats_label = $UI/MarginContainer/VBoxContainer/TopBar/MonsterStats
 @onready var fast_travel_bar = $UI/MarginContainer/VBoxContainer/FastTravelBar
 @onready var player = $Player
 @onready var pause_menu = $UI/PauseMenu
 @onready var character_panel = $UI/CharacterPanel
 @onready var grimoire_panel = $UI/GrimoirePanel
+@onready var magic_school_panel = $UI/MagicSchoolPanel
 @onready var hud_spell_bar = $UI/MarginContainer/VBoxContainer/HudSpellBar
+@onready var transition_overlay = $UI/TransitionOverlay
 
 # Le monde du jeu, avec les informations sur les monstres
 var world = [
@@ -29,6 +30,7 @@ func _ready():
 	pause_menu.process_mode = Node.PROCESS_MODE_WHEN_PAUSED
 	character_panel.process_mode = Node.PROCESS_MODE_WHEN_PAUSED
 	grimoire_panel.process_mode = Node.PROCESS_MODE_WHEN_PAUSED
+	magic_school_panel.process_mode = Node.PROCESS_MODE_WHEN_PAUSED
 
 	# Met à jour l'interface
 	update_ui()
@@ -40,7 +42,6 @@ func _ready():
 	
 	# Connecte les signaux et les boutons
 	GameState.essence_updated.connect(on_essence_updated)
-	upgrade_power_button.pressed.connect(Callable(self, "_on_generic_upgrade_pressed").bind("power"))
 	pause_menu.get_node("MenuButtons/ResumeButton").pressed.connect(toggle_pause)
 	pause_menu.get_node("MenuButtons/CharacterButton").pressed.connect(_on_character_button_pressed)
 	pause_menu.get_node("MenuButtons/GrimoireButton").pressed.connect(_on_grimoire_button_pressed)
@@ -65,9 +66,6 @@ func update_ui():
 	zone_name_label.text = "Lieu: " + current_zone.name
 	essence_label.text = "Essence: " + str(GameState.magic_essence)
 	
-	var power_cost = floor(10 * pow(1.5, GameState.stats["power"] - 1))
-	upgrade_power_button.text = "Améliorer Puissance (" + str(power_cost) + " E)"
-	
 	if is_instance_valid(current_monster):
 		update_monster_stats_label()
 	else:
@@ -87,17 +85,54 @@ func update_ui():
 
 # Change de zone et gère l'apparition des monstres
 func change_zone(new_index: int):
+	if transition_overlay.visible:
+		return
+
 	GameState.current_zone_index = new_index
+	
+	# --- Animation de transition ---
+	var tween = create_tween()
+	tween.tween_property(transition_overlay, "modulate:a", 1.0, 0.3)
+	transition_overlay.show()
+	await tween.finished
+	
+	# On change le décor pendant que l'écran est noir
+	update_world_display()
+	
+	# Le personnage entre toujours par la gauche
+	player.set_direction("right")
+	var screen_size = get_viewport_rect().size
+	var start_pos = Vector2(-100, player.position.y)
+	
+	# La destination dépend de la présence d'un monstre
+	var target_x = screen_size.x / 2
+	if is_instance_valid(current_monster):
+		target_x = screen_size.x * 0.25
+		
+	var target_pos = Vector2(target_x, player.position.y)
+
+	# On place le joueur à sa position de départ et on lance le mouvement
+	player.position = start_pos
+	player.move_to(target_pos, 0.5)
+	
+	# Fondu au clair
+	tween = create_tween()
+	tween.tween_property(transition_overlay, "modulate:a", 0.0, 0.3)
+	await tween.finished
+	transition_overlay.hide()
+
+func update_world_display():
+	# Cette fonction met à jour ce qui est dans la zone (monstre, panneaux, etc.)
+	var screen_size = get_viewport_rect().size
 	
 	if is_instance_valid(current_monster):
 		current_monster.queue_free()
 		current_monster = null
 	
-	var zone_data = world[new_index]
+	var zone_data = world[GameState.current_zone_index]
 	if zone_data.monster != null:
 		var monster_scene = load(zone_data.monster)
 		current_monster = monster_scene.instantiate()
-		var screen_size = get_viewport_rect().size
 		current_monster.position = Vector2(screen_size.x - 250, screen_size.y - 110)
 		add_child(current_monster)
 		
@@ -107,6 +142,12 @@ func change_zone(new_index: int):
 		player.set_target(current_monster)
 	else:
 		player.set_target(null)
+
+	if zone_data.name == "École de Magie":
+		magic_school_panel.show()
+		update_magic_school_panel()
+	else:
+		magic_school_panel.hide()
 
 	update_ui()
 
@@ -170,6 +211,15 @@ func update_character_panel():
 		hbox.add_child(label)
 		hbox.add_child(button)
 		stats_container.add_child(hbox)
+	
+	# Met à jour le bouton d'achat d'emplacement
+	var buy_slot_button = character_panel.get_node("MarginContainer/VBoxContainer/BuySlotButton")
+	var slot_cost = floor(100 * pow(3, GameState.spell_slots.size() - 1))
+	buy_slot_button.text = "Acheter Emplacement (%d E)" % slot_cost
+	# On connecte le bouton (on le déconnecte d'abord pour éviter les connexions multiples)
+	if buy_slot_button.is_connected("pressed", Callable(self, "_on_buy_slot_pressed")):
+		buy_slot_button.disconnect("pressed", Callable(self, "_on_buy_slot_pressed"))
+	buy_slot_button.pressed.connect(self._on_buy_slot_pressed)
 
 func update_grimoire_panel():
 	var slots_container = grimoire_panel.get_node("MarginContainer/VBoxContainer/ActiveSlotsContainer")
@@ -206,7 +256,43 @@ func update_grimoire_panel():
 		spell_container.add_child(xp_bar)
 		book_container.add_child(spell_container)
 
+func update_magic_school_panel():
+	var spell_list = magic_school_panel.get_node("MarginContainer/VBoxContainer/ScrollContainer/SpellList")
+	for child in spell_list.get_children():
+		child.queue_free()
+	
+	# On récupère la liste des IDs des sorts déjà appris
+	var learned_spell_ids = GameState.spellbook.map(func(s): return s.id)
+	
+	# On affiche un bouton pour chaque sort qui n'est pas encore appris
+	for spell_id in GameState.SPELL_DATA:
+		if not spell_id in learned_spell_ids:
+			var spell_data = GameState.SPELL_DATA[spell_id]
+			var cost = 0
+			if not GameState.spellbook.is_empty():
+				cost = floor(50 * pow(2, GameState.spellbook.size() - 1))
+			
+			var button = Button.new()
+			button.text = "%s %s (Coût: %d E)" % [spell_data.symbol, spell_data.name, cost]
+			button.pressed.connect(Callable(self, "_on_learn_spell_pressed").bind(spell_id))
+			spell_list.add_child(button)
+
 # --- Fonctions connectées aux signaux et boutons ---
+
+func _on_learn_spell_pressed(spell_id: String):
+	if GameState.learn_new_spell(spell_id):
+		# Si l'apprentissage réussit, on met à jour les panneaux
+		update_magic_school_panel()
+		update_grimoire_panel()
+
+func _on_buy_slot_pressed():
+	if GameState.buy_spell_slot():
+		# Si l'achat réussit, on met à jour les panneaux
+		update_character_panel()
+		update_grimoire_panel()
+		update_hud_spell_bar()
+		# On doit aussi dire au joueur de redimensionner son tableau de progression
+		player.resize_cast_progress()
 
 func on_essence_updated(new_value: int):
 	essence_label.text = "Essence: " + str(new_value)
@@ -242,6 +328,7 @@ func _on_monster_hit(spell_info):
 
 func _on_generic_upgrade_pressed(stat_name: String):
 	if GameState.upgrade_stat(stat_name):
+		# Si l'amélioration réussit, on met à jour les panneaux pertinents
 		update_ui()
 		update_character_panel()
 

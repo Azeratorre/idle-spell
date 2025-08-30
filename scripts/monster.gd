@@ -52,13 +52,24 @@ func gain_xp():
 func _process(delta: float):
 	if not is_animating:
 		return
+		
 	animation_timer += delta
 	if animation_timer > animation_speed:
-		current_frame = (current_frame + 1) % animation_frame_count
-		sprite.frame = current_frame
 		animation_timer = 0.0
+		current_frame += 1
+		
+		# Si on a joué toutes les images
+		if current_frame >= animation_frame_count:
+			# On arrête l'animation et on revient à l'image de repos (la première)
+			current_frame = 0
+			is_animating = false
+		
+		sprite.frame = current_frame
 
 func play_attack_animation():
+	# Si l'animation est déjà en train de se jouer, on ne la relance pas
+	if is_animating:
+		return
 	is_animating = true
 	current_frame = 0
 	animation_timer = 0.0

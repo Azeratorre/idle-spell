@@ -14,6 +14,8 @@ var cast_progress: Array = []
 var cast_bars: Dictionary = {}
 var cast_bar_stylebox = StyleBoxFlat.new()
 
+var direction: String = "right"
+
 func _ready():
 	cast_progress.resize(GameState.spell_slots.size())
 	cast_progress.fill(0.0)
@@ -48,7 +50,6 @@ func update_casting(delta: float):
 			if not cast_bars.has(i):
 				var new_bar = ProgressBar.new()
 				new_bar.custom_minimum_size = Vector2(50, 8)
-				# Ligne corrigée : on utilise la méthode add_theme_stylebox_override
 				new_bar.add_theme_stylebox_override("fill", cast_bar_stylebox)
 				new_bar.max_value = cast_time
 				new_bar.show_percentage = false
@@ -72,6 +73,15 @@ func update_cast_bar_positions():
 		var bar = visible_bars[i]
 		bar.position = Vector2(-bar.size.x / 2, -y_offset - (i * (bar.size.y + 2)))
 
+func set_direction(new_direction: String):
+	if direction != new_direction:
+		direction = new_direction
+		sprite.flip_h = (direction == "left")
+
+func move_to(target_position: Vector2, duration: float):
+	var tween = create_tween()
+	tween.tween_property(self, "position", target_position, duration).set_trans(Tween.TRANS_SINE)
+
 func set_target(target: Node2D):
 	monster_target = target
 	cast_progress.fill(0.0)
@@ -81,6 +91,12 @@ func clear_all_cast_bars():
 	for bar in cast_bars.values():
 		bar.queue_free()
 	cast_bars.clear()
+
+func resize_cast_progress():
+	cast_progress.resize(GameState.spell_slots.size())
+	for i in range(cast_progress.size()):
+		if cast_progress[i] == null:
+			cast_progress[i] = 0.0
 
 func fire_skill(spell_data):
 	if not is_instance_valid(monster_target):

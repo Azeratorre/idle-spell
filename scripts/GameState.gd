@@ -21,7 +21,8 @@ var current_zone_index: int = 0
 # --- Données des sorts ---
 const SPELL_DATA = {
 	"spark": { "name": "Étincelle", "symbol": "✨", "base_damage": 5, "element": "Feu" },
-	"bubble": { "name": "Bulle", "symbol": "💧", "base_damage": 4, "element": "Eau" }
+	"bubble": { "name": "Bulle", "symbol": "💧", "base_damage": 4, "element": "Eau" },
+	"rock": { "name": "Caillou", "symbol": "🗿", "base_damage": 7, "element": "Terre" }
 }
 
 func _ready():
@@ -49,14 +50,55 @@ func reset_to_default():
 func add_essence(amount: int):
 	self.magic_essence += amount
 
-func upgrade_stat(stat_name: String):
+func upgrade_stat(stat_name: String) -> bool:
 	var current_level = stats[stat_name]
 	var cost = floor(10 * pow(1.5, current_level - 1))
+	
 	if magic_essence >= cost:
-		self.magic_essence -= cost
+		magic_essence -= cost
 		stats[stat_name] += 1
+		print(stat_name + " amélioré au niveau " + str(stats[stat_name]))
 		return true
 	else:
+		print("Pas assez d'essence pour améliorer " + stat_name)
+		return false
+
+		return false # L'amélioration a échoué
+
+func learn_new_spell(spell_id: String) -> bool:
+	# On vérifie que le sort existe et qu'on ne l'a pas déjà
+	if not SPELL_DATA.has(spell_id) or spellbook.any(func(s): return s.id == spell_id):
+		return false
+
+	# Le premier sort est gratuit, les autres ont un coût évolutif
+	var cost = 0
+	if not spellbook.is_empty():
+		cost = floor(50 * pow(2, spellbook.size() -1))
+	
+	if magic_essence >= cost:
+		magic_essence -= cost
+		var new_spell = {
+			"id": spell_id,
+			"level": 1,
+			"xp": 0,
+			"xp_to_next_level": 100
+		}
+		spellbook.append(new_spell)
+		print("Nouveau sort appris : ", SPELL_DATA[spell_id].name)
+		return true
+	else:
+		print("Pas assez d'essence. Coût : ", cost)
+		return false
+
+func buy_spell_slot() -> bool:
+	var cost = floor(100 * pow(3, spell_slots.size() - 1))
+	if magic_essence >= cost:
+		magic_essence -= cost
+		spell_slots.append(null)
+		print("Nouvel emplacement de sort acheté ! Total : ", spell_slots.size())
+		return true
+	else:
+		print("Pas assez d'essence pour acheter un emplacement. Coût : ", cost)
 		return false
 
 func get_monster_data(monster_id: String):
