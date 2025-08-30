@@ -1,74 +1,77 @@
 extends Node2D
 
-# Signal qui sera émis lorsque le monstre est vaincu
 signal died
-# Signal émis chaque fois que le monstre est touché par un sort
 signal hit_by_spell(spell_info)
 
 @onready var sprite: Sprite2D = $Sprite
 @onready var hp_bar: ProgressBar = $HPBar
+@onready var xp_bar: ProgressBar = $XPBar
 
-# --- Stats du monstre ---
+var monster_id: String = "training_dummy"
+var base_hp: int = 100
+var base_essence_reward: int = 10
+var level: int = 1
+var xp: int = 0
+var xp_to_next_level: int = 100
 var max_hp: int = 100
 var current_hp: int = 100
 var essence_reward: int = 10
 var is_dead: bool = false
 
-# --- Variables pour l'animation ---
 var animation_frame_count: int = 5
 var current_frame: int = 0
 var animation_timer: float = 0.0
-var animation_speed: float = 0.1 # Temps en secondes entre chaque frame (100ms)
-var is_animating: bool = false # Pour contrôler si l'animation doit jouer
+var animation_speed: float = 0.1
+var is_animating: bool = false
 
 func _ready():
-	# Initialise la barre de vie
+	var monster_data = GameState.get_monster_data(monster_id)
+	level = monster_data.level
+	xp = monster_data.xp
+	update_stats_to_level()
 	hp_bar.max_value = max_hp
 	hp_bar.value = current_hp
+	xp_bar.max_value = xp_to_next_level
+	xp_bar.value = xp
 
-# La fonction _process est appelée à chaque image
+func update_stats_to_level():
+	max_hp = floor(base_hp * pow(1.2, level - 1))
+	essence_reward = floor(base_essence_reward * pow(1.1, level - 1))
+	xp_to_next_level = floor(100 * pow(1.5, level - 1))
+	current_hp = max_hp
+
+func gain_xp():
+	xp += floor(xp_to_next_level / 10.0)
+	xp_bar.value = xp
+	if xp >= xp_to_next_level:
+		level += 1
+		xp = 0
+		update_stats_to_level() # Met à jour les barres après la montée de niveau
+	GameState.update_monster_data(monster_id, {"level": level, "xp": xp})
+
 func _process(delta: float):
-	# Si l'animation ne doit pas jouer, on ne fait rien
 	if not is_animating:
 		return
-
 	animation_timer += delta
-	
 	if animation_timer > animation_speed:
-		current_frame += 1
-		
-		# Si on a atteint la fin de l'animation
-		if current_frame >= animation_frame_count:
-			# On arrête l'animation et on revient à la première image
-			is_animating = false
-			current_frame = 0
-		
+		current_frame = (current_frame + 1) % animation_frame_count
 		sprite.frame = current_frame
 		animation_timer = 0.0
 
-# Une fonction pour démarrer l'animation
 func play_attack_animation():
 	is_animating = true
 	current_frame = 0
 	animation_timer = 0.0
 
-# Fonction appelée par le projectile lorsqu'il touche le monstre
 func take_damage(amount: int, spell_info: Dictionary):
-	# Si le monstre est déjà mort, on ignore les dégâts supplémentaires
 	if is_dead:
 		return
-
 	current_hp -= amount
 	hp_bar.value = current_hp
-	print("Monstre touché ! HP restants : ", current_hp)
-	
-	# On émet le signal pour dire quel sort a touché
 	emit_signal("hit_by_spell", spell_info)
-	
 	play_attack_animation()
-	
 	if current_hp <= 0:
 		is_dead = true
-		# On émet le signal de mort et on se cache en attendant d'être supprimé/réinitialisé
+		gain_xp()
 		emit_signal("died")
-		hide() # On cache le monstre
+		hide()

@@ -18,7 +18,7 @@ var world = [
 	{"name": "Village", "monster": null},
 	{"name": "École de Magie", "monster": null},
 	{"name": "Zone d'entraînement", "monster": "res://scenes/Monster.tscn"},
-	{"name": "Forêt", "monster": null}
+	{"name": "Forêt", "monster": "res://scenes/Slime.tscn"}
 ]
 
 var current_monster = null
@@ -44,6 +44,8 @@ func _ready():
 	pause_menu.get_node("MenuButtons/ResumeButton").pressed.connect(toggle_pause)
 	pause_menu.get_node("MenuButtons/CharacterButton").pressed.connect(_on_character_button_pressed)
 	pause_menu.get_node("MenuButtons/GrimoireButton").pressed.connect(_on_grimoire_button_pressed)
+	# Ajout de la connexion pour le bouton Sauvegarder
+	pause_menu.get_node("MenuButtons/SaveButton").pressed.connect(GameState.save_game)
 	character_panel.get_node("MarginContainer/VBoxContainer/BackButton").pressed.connect(_on_back_to_pause_menu_pressed)
 	grimoire_panel.get_node("MarginContainer/VBoxContainer/BackButton").pressed.connect(_on_back_to_pause_menu_pressed)
 
@@ -67,7 +69,7 @@ func update_ui():
 	upgrade_power_button.text = "Améliorer Puissance (" + str(power_cost) + " E)"
 	
 	if is_instance_valid(current_monster):
-		monster_stats_label.text = "Monstre: Mannequin | HP: 100/100"
+		update_monster_stats_label()
 	else:
 		monster_stats_label.text = "Aucun monstre"
 	
@@ -107,6 +109,16 @@ func change_zone(new_index: int):
 		player.set_target(null)
 
 	update_ui()
+
+func update_monster_stats_label():
+	if not is_instance_valid(current_monster):
+		return
+	
+	var monster_name = "Mannequin" # Par défaut
+	if "Slime" in current_monster.get_script().resource_path:
+		monster_name = "Slime"
+		
+	monster_stats_label.text = "Monstre: %s (Niv. %d) | HP: %d/%d" % [monster_name, current_monster.level, int(current_monster.current_hp), current_monster.max_hp]
 
 # --- Fonctions de mise à jour des panneaux ---
 
@@ -225,6 +237,8 @@ func _on_monster_hit(spell_info):
 	if grimoire_panel.visible:
 		update_grimoire_panel()
 	update_hud_spell_bar()
+	# On met à jour les HP du monstre sur l'HUD à chaque coup
+	update_monster_stats_label()
 
 func _on_generic_upgrade_pressed(stat_name: String):
 	if GameState.upgrade_stat(stat_name):

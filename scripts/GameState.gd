@@ -1,101 +1,137 @@
 extends Node
 
-# Signal émis lorsque la quantité d'essence magique change
 signal essence_updated(new_value)
 
-# Données du joueur
+const SAVE_FILE_PATH = "user://savegame.json"
+
+# --- Données du joueur ---
 var player_name: String = "Apprenti Anonyme"
 var magic_essence: int = 0:
 	set(value):
 		magic_essence = value
 		emit_signal("essence_updated", magic_essence)
 
-# Statistiques du joueur
-var stats: Dictionary = {
-	"intelligence": 1,
-	"power": 1,
-	"celerity": 1,
-	"wisdom": 1
-}
-
-# Emplacements de sorts actifs
+var stats: Dictionary = { "intelligence": 1, "power": 1, "celerity": 1, "wisdom": 1 }
 var spell_slots: Array = [null, null]
-
-# Grimoire de tous les sorts appris
 var spellbook: Array = []
-
-# Niveaux des monstres rencontrés
 var monster_levels: Dictionary = {}
-
-# Pour assigner un ID unique à chaque nouveau sort
 var next_spell_id: int = 0
-
-# Index de la zone actuelle
 var current_zone_index: int = 0
 
-# --- Données des sorts (similaire à skillTiers en JS) ---
+# --- Données des sorts ---
 const SPELL_DATA = {
 	"spark": { "name": "Étincelle", "symbol": "✨", "base_damage": 5, "element": "Feu" },
 	"bubble": { "name": "Bulle", "symbol": "💧", "base_damage": 4, "element": "Eau" }
 }
 
 func _ready():
-	# Pour les tests, on commence avec deux sorts appris
-	if spellbook.is_empty():
-		var spell_spark = { "id": "spark", "level": 1, "xp": 0, "xp_to_next_level": 100 }
-		var spell_bubble = { "id": "bubble", "level": 1, "xp": 0, "xp_to_next_level": 100 }
-		spellbook.append(spell_spark)
-		spellbook.append(spell_bubble)
+	reset_to_default()
 
-# --- Fonctions de modification des données ---
+# --- Fonctions de gestion des données ---
+
+func reset_to_default():
+	player_name = "Apprenti Anonyme"
+	magic_essence = 0
+	stats = { "intelligence": 1, "power": 1, "celerity": 1, "wisdom": 1 }
+	spell_slots = [null, null]
+	spellbook = []
+	monster_levels = {}
+	next_spell_id = 0
+	current_zone_index = 0
+	
+	# On donne les sorts de base au joueur
+	var spell_spark = { "id": "spark", "level": 1, "xp": 0, "xp_to_next_level": 100 }
+	var spell_bubble = { "id": "bubble", "level": 1, "xp": 0, "xp_to_next_level": 100 }
+	spellbook.append(spell_spark)
+	spellbook.append(spell_bubble)
+	print("GameState réinitialisé aux valeurs par défaut.")
 
 func add_essence(amount: int):
 	self.magic_essence += amount
-	print(str(amount) + " essence magique gagnée. Total : " + str(magic_essence))
 
 func upgrade_stat(stat_name: String):
-	# Calcule le coût basé sur le niveau actuel de la stat
 	var current_level = stats[stat_name]
 	var cost = floor(10 * pow(1.5, current_level - 1))
-	
 	if magic_essence >= cost:
-		# Si on a assez d'essence, on paie le coût
 		self.magic_essence -= cost
-		# On augmente le niveau de la stat
 		stats[stat_name] += 1
-		print(stat_name + " amélioré au niveau " + str(stats[stat_name]))
-		return true # L'amélioration a réussi
+		return true
 	else:
-		# Sinon, on signale que l'amélioration a échoué
-		print("Pas assez d'essence pour améliorer " + stat_name)
-		return false # L'amélioration a échoué
+		return false
+
+func get_monster_data(monster_id: String):
+	return monster_levels.get(monster_id, {"level": 1, "xp": 0})
+
+func update_monster_data(monster_id: String, data: Dictionary):
+	monster_levels[monster_id] = data
 
 func gain_spell_xp(spell_info: Dictionary, amount: int):
-	# On cherche le sort correspondant dans le grimoire
 	for spell in spellbook:
 		if spell.id == spell_info.id:
-			# On augmente son XP (avec le bonus d'intelligence)
 			var intelligence_bonus = 1 + (stats["intelligence"] - 1) * 0.1
 			spell.xp += round(amount * intelligence_bonus)
-			
-			# On vérifie s'il monte de niveau
 			if spell.xp >= spell.xp_to_next_level:
 				spell.level += 1
 				spell.xp = 0
-				# On augmente le coût en XP pour le prochain niveau
 				spell.xp_to_next_level = floor(spell.xp_to_next_level * 1.8)
 				var spell_name = SPELL_DATA[spell.id].name
 				print(spell_name + " a atteint le niveau " + str(spell.level) + " !")
-			
-			# On a trouvé et mis à jour le sort, on peut arrêter la boucle
 			break
 
 # --- Fonctions de Sauvegarde et Chargement ---
 
 func save_game():
-	# La logique de sauvegarde sera implémentée ici
-	print("Partie sauvegardée (logique à faire)")
+	# On rassemble toutes les données à sauvegarder dans un dictionnaire
+	var save_data = {
+		"player_name": player_name,
+		"magic_essence": magic_essence,
+		"stats": stats,
+		"spell_slots": spell_slots,
+		"spellbook": spellbook,
+		"monster_levels": monster_levels,
+		"next_spell_id": next_spell_id,
+		"current_zone_index": current_zone_index
+	}
+	
+	# On ouvre le fichier de sauvegarde en mode écriture
+	var file = FileAccess.open(SAVE_FILE_PATH, FileAccess.WRITE)
+	if file:
+		# On convertit le dictionnaire en texte JSON
+		var json_string = JSON.stringify(save_data, "\t")
+		# On écrit le texte dans le fichier
+		file.store_string(json_string)
+		file.close()
+		print("Partie sauvegardée avec succès dans " + SAVE_FILE_PATH)
+	else:
+		print("Erreur lors de la sauvegarde de la partie.")
 
-func load_game():
-	# La logique de chargement sera implémentée ici
-	print("Partie chargée (logique à faire)")
+func load_game() -> bool:
+	if not FileAccess.file_exists(SAVE_FILE_PATH):
+		print("Fichier de sauvegarde non trouvé.")
+		return false
+
+	var file = FileAccess.open(SAVE_FILE_PATH, FileAccess.READ)
+	if file:
+		var json_string = file.get_as_text()
+		file.close()
+		
+		var parse_result = JSON.parse_string(json_string)
+		if parse_result != null:
+			var data = parse_result
+			# On charge les données dans notre état de jeu
+			player_name = data.get("player_name", "Apprenti")
+			magic_essence = data.get("magic_essence", 0)
+			stats = data.get("stats", { "intelligence": 1, "power": 1, "celerity": 1, "wisdom": 1 })
+			spell_slots = data.get("spell_slots", [null, null])
+			spellbook = data.get("spellbook", [])
+			monster_levels = data.get("monster_levels", {})
+			next_spell_id = data.get("next_spell_id", 0)
+			current_zone_index = data.get("current_zone_index", 0)
+			print("Partie chargée avec succès.")
+			return true
+		else:
+			print("Erreur lors de la lecture du fichier de sauvegarde (JSON invalide).")
+			return false
+	else:
+		print("Erreur lors de l'ouverture du fichier de sauvegarde.")
+		return false

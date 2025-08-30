@@ -11,24 +11,24 @@ config_version=5
 [application]
 
 config/name="Idle Spell"
-run/main_scene="res://scenes/Game.tscn"
+run/main_scene="res://scenes/Launcher.tscn"
 config/features=PackedStringArray("4.4", "GL Compatibility")
 config/icon="res://icon.svg"
-config/main_scene="res://scenes/Game.tscn"
 
 [autoload]
 
 GameState="*res://scripts/GameState.gd"
+SceneManager="*res://scripts/SceneManager.gd"
 
-[display/window]
+[display]
 
-size/viewport_width=1280
-size/viewport_height=720
-mode=3
-stretch/mode="canvas_items"
-stretch/aspect="keep"
+window/size/viewport_width=1280
+window/size/viewport_height=720
+window/stretch/mode="canvas_items"
+window/mode=1
 
 [rendering]
 
+textures/canvas_textures/default_texture_filter=0
 renderer/rendering_method="gl_compatibility"
 renderer/rendering_method.mobile="gl_compatibility"

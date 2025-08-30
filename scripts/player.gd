@@ -2,28 +2,27 @@ extends Node2D
 
 @onready var sprite: Sprite2D = $Sprite
 
-# --- Variables pour l'animation ---
 var animation_frame_count: int = 6
 var current_frame: int = 0
 var animation_timer: float = 0.0
 var animation_speed: float = 0.15
 
-# --- Variables pour le combat ---
 var monster_target: Node2D = null
 var projectile_scene = preload("res://scenes/Projectile.tscn")
 
-# Un tableau pour suivre la progression de chaque sort.
-# Il aura la même taille que le tableau `spell_slots`.
 var cast_progress: Array = []
+var cast_bars: Dictionary = {}
+var cast_bar_stylebox = StyleBoxFlat.new()
 
 func _ready():
-	# Initialise le tableau de progression pour qu'il corresponde au nombre d'emplacements
 	cast_progress.resize(GameState.spell_slots.size())
 	cast_progress.fill(0.0)
+	cast_bar_stylebox.bg_color = Color.PURPLE
 
 func _process(delta: float):
 	update_animation(delta)
 	update_casting(delta)
+	update_cast_bar_positions()
 
 func update_animation(delta: float):
 	animation_timer += delta
@@ -34,31 +33,54 @@ func update_animation(delta: float):
 
 func update_casting(delta: float):
 	if not is_instance_valid(monster_target):
+		if not cast_bars.is_empty():
+			clear_all_cast_bars()
 		return
 
-	# On parcourt tous les emplacements de sorts
 	for i in range(GameState.spell_slots.size()):
 		var spell = GameState.spell_slots[i]
 		
-		# Si un sort est équipé dans cet emplacement
 		if spell != null:
-			# On augmente la progression de son incantation
 			cast_progress[i] += delta
-			
-			# On calcule le temps d'incantation (pour l'instant, 1.5s pour tous)
 			var celerity_bonus = 1 + (GameState.stats["celerity"] - 1) * 0.05
 			var cast_time = 1.5 / celerity_bonus
 			
-			# Si l'incantation est terminée
+			if not cast_bars.has(i):
+				var new_bar = ProgressBar.new()
+				new_bar.custom_minimum_size = Vector2(50, 8)
+				# Ligne corrigée : on utilise la méthode add_theme_stylebox_override
+				new_bar.add_theme_stylebox_override("fill", cast_bar_stylebox)
+				new_bar.max_value = cast_time
+				new_bar.show_percentage = false
+				add_child(new_bar)
+				cast_bars[i] = new_bar
+			
+			cast_bars[i].value = cast_progress[i]
+			
 			if cast_progress[i] >= cast_time:
 				fire_skill(spell)
-				# On réinitialise la progression pour cet emplacement
 				cast_progress[i] = 0.0
+		else:
+			if cast_bars.has(i):
+				cast_bars[i].queue_free()
+				cast_bars.erase(i)
+
+func update_cast_bar_positions():
+	var y_offset = 40.0
+	var visible_bars = cast_bars.values()
+	for i in range(visible_bars.size()):
+		var bar = visible_bars[i]
+		bar.position = Vector2(-bar.size.x / 2, -y_offset - (i * (bar.size.y + 2)))
 
 func set_target(target: Node2D):
 	monster_target = target
-	# On réinitialise la progression de toutes les incantations
 	cast_progress.fill(0.0)
+	clear_all_cast_bars()
+
+func clear_all_cast_bars():
+	for bar in cast_bars.values():
+		bar.queue_free()
+	cast_bars.clear()
 
 func fire_skill(spell_data):
 	if not is_instance_valid(monster_target):

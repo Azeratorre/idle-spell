@@ -1,8 +1,9 @@
-[gd_scene load_steps=4 format=3 uid="uid://crk36jktdpy0u"]
+[gd_scene load_steps=5 format=3 uid="uid://crk36jktdpy0u"]
 
 [ext_resource type="Script" uid="uid://ce3mlxa6kdfiw" path="res://scripts/Game.gd" id="1_w84de"]
 [ext_resource type="Texture2D" uid="uid://cks7ir53n2jk5" path="res://assets/Background.png" id="2_nm07c"]
 [ext_resource type="PackedScene" uid="uid://b33oq3fdjtaek" path="res://scenes/Player.tscn" id="3_v1q0k"]
+[ext_resource type="Theme" path="res://assets/themes/main_theme.tres" id="4_theme"]
 
 [node name="Game" type="Node2D"]
 script = ExtResource("1_w84de")
@@ -36,6 +37,7 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
+theme = ExtResource("4_theme")
 theme_override_constants/margin_left = 15
 theme_override_constants/margin_top = 15
 theme_override_constants/margin_right = 15
@@ -107,6 +109,10 @@ alignment = 1
 [node name="ResumeButton" type="Button" parent="UI/PauseMenu/MenuButtons"]
 layout_mode = 2
 text = "Reprendre"
+
+[node name="SaveButton" type="Button" parent="UI/PauseMenu/MenuButtons"]
+layout_mode = 2
+text = "Sauvegarder"
 
 [node name="CharacterButton" type="Button" parent="UI/PauseMenu/MenuButtons"]
 layout_mode = 2
