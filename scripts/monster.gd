@@ -2,6 +2,8 @@ extends Node2D
 
 # Signal qui sera émis lorsque le monstre est vaincu
 signal died
+# Signal émis chaque fois que le monstre est touché par un sort
+signal hit_by_spell(spell_info)
 
 @onready var sprite: Sprite2D = $Sprite
 @onready var hp_bar: ProgressBar = $HPBar
@@ -51,7 +53,7 @@ func play_attack_animation():
 	animation_timer = 0.0
 
 # Fonction appelée par le projectile lorsqu'il touche le monstre
-func take_damage(amount: int):
+func take_damage(amount: int, spell_info: Dictionary):
 	# Si le monstre est déjà mort, on ignore les dégâts supplémentaires
 	if is_dead:
 		return
@@ -59,6 +61,9 @@ func take_damage(amount: int):
 	current_hp -= amount
 	hp_bar.value = current_hp
 	print("Monstre touché ! HP restants : ", current_hp)
+	
+	# On émet le signal pour dire quel sort a touché
+	emit_signal("hit_by_spell", spell_info)
 	
 	play_attack_animation()
 	

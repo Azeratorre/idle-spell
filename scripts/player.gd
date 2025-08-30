@@ -1,71 +1,71 @@
 extends Node2D
 
-# Référence au nœud Sprite2D pour pouvoir le manipuler
 @onready var sprite: Sprite2D = $Sprite
 
 # --- Variables pour l'animation ---
-var animation_frame_count: int = 6  # Nombre d'images dans la spritesheet
+var animation_frame_count: int = 6
 var current_frame: int = 0
 var animation_timer: float = 0.0
-var animation_speed: float = 0.15  # Temps en secondes entre chaque frame (150ms)
+var animation_speed: float = 0.15
 
 # --- Variables pour le combat ---
-var cast_timer: float = 0.0
-var base_cast_interval: float = 1.5 # Temps de base en secondes
 var monster_target: Node2D = null
-
-# On pré-charge la scène du projectile pour pouvoir la créer rapidement
 var projectile_scene = preload("res://scenes/Projectile.tscn")
 
-# La fonction _process est appelée à chaque image par Godot
-func _process(delta: float):
-	# Met à jour le timer d'animation
-	animation_timer += delta
-	
-	# Si le temps écoulé est supérieur à notre vitesse d'animation
-	if animation_timer > animation_speed:
-		# On passe à l'image suivante
-		current_frame = (current_frame + 1) % animation_frame_count
-		
-		# On met à jour le sprite pour afficher la nouvelle image
-		sprite.frame = current_frame
-		
-		# On réinitialise le timer
-		animation_timer = 0.0
-	
-	# --- Logique de combat ---
-	# S'il y a une cible valide (un monstre)
-	if is_instance_valid(monster_target):
-		cast_timer += delta
-		# On calcule le temps d'incantation réel en incluant le bonus de célérité
-		var celerity_bonus = 1 + (GameState.stats["celerity"] - 1) * 0.05
-		var actual_cast_interval = base_cast_interval / celerity_bonus
-		
-		# Si le temps d'incantation est écoulé
-		if cast_timer >= actual_cast_interval:
-			fire_skill()
-			# On réinitialise le timer
-			cast_timer = 0.0
+# Un tableau pour suivre la progression de chaque sort.
+# Il aura la même taille que le tableau `spell_slots`.
+var cast_progress: Array = []
 
-# Permet au script Game.gd de dire au joueur qui est sa cible
+func _ready():
+	# Initialise le tableau de progression pour qu'il corresponde au nombre d'emplacements
+	cast_progress.resize(GameState.spell_slots.size())
+	cast_progress.fill(0.0)
+
+func _process(delta: float):
+	update_animation(delta)
+	update_casting(delta)
+
+func update_animation(delta: float):
+	animation_timer += delta
+	if animation_timer > animation_speed:
+		current_frame = (current_frame + 1) % animation_frame_count
+		sprite.frame = current_frame
+		animation_timer = 0.0
+
+func update_casting(delta: float):
+	if not is_instance_valid(monster_target):
+		return
+
+	# On parcourt tous les emplacements de sorts
+	for i in range(GameState.spell_slots.size()):
+		var spell = GameState.spell_slots[i]
+		
+		# Si un sort est équipé dans cet emplacement
+		if spell != null:
+			# On augmente la progression de son incantation
+			cast_progress[i] += delta
+			
+			# On calcule le temps d'incantation (pour l'instant, 1.5s pour tous)
+			var celerity_bonus = 1 + (GameState.stats["celerity"] - 1) * 0.05
+			var cast_time = 1.5 / celerity_bonus
+			
+			# Si l'incantation est terminée
+			if cast_progress[i] >= cast_time:
+				fire_skill(spell)
+				# On réinitialise la progression pour cet emplacement
+				cast_progress[i] = 0.0
+
 func set_target(target: Node2D):
 	monster_target = target
-	cast_timer = 0.0 # On réinitialise le timer à chaque changement de cible
+	# On réinitialise la progression de toutes les incantations
+	cast_progress.fill(0.0)
 
-# Fonction pour créer et lancer un projectile
-func fire_skill():
-	# Sécurité : on vérifie que la cible existe toujours
+func fire_skill(spell_data):
 	if not is_instance_valid(monster_target):
 		return
 
 	var projectile = projectile_scene.instantiate()
-	
-	# On ajoute le projectile à la scène principale (pas au joueur)
-	# pour qu'il ne bouge pas avec le joueur
 	get_parent().add_child(projectile)
-	
-	# On le positionne sur le joueur
 	projectile.global_position = self.global_position
-	
-	# On lui donne sa cible
 	projectile.target = monster_target
+	projectile.spell_info = spell_data

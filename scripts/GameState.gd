@@ -19,7 +19,7 @@ var stats: Dictionary = {
 }
 
 # Emplacements de sorts actifs
-var spell_slots: Array = [null]
+var spell_slots: Array = [null, null]
 
 # Grimoire de tous les sorts appris
 var spellbook: Array = []
@@ -40,15 +40,12 @@ const SPELL_DATA = {
 }
 
 func _ready():
-	# Pour les tests, on commence avec un sort appris
+	# Pour les tests, on commence avec deux sorts appris
 	if spellbook.is_empty():
-		var new_spell = {
-			"id": "spark",
-			"level": 1,
-			"xp": 0,
-			"xp_to_next_level": 100
-		}
-		spellbook.append(new_spell)
+		var spell_spark = { "id": "spark", "level": 1, "xp": 0, "xp_to_next_level": 100 }
+		var spell_bubble = { "id": "bubble", "level": 1, "xp": 0, "xp_to_next_level": 100 }
+		spellbook.append(spell_spark)
+		spellbook.append(spell_bubble)
 
 # --- Fonctions de modification des données ---
 
@@ -72,6 +69,26 @@ func upgrade_stat(stat_name: String):
 		# Sinon, on signale que l'amélioration a échoué
 		print("Pas assez d'essence pour améliorer " + stat_name)
 		return false # L'amélioration a échoué
+
+func gain_spell_xp(spell_info: Dictionary, amount: int):
+	# On cherche le sort correspondant dans le grimoire
+	for spell in spellbook:
+		if spell.id == spell_info.id:
+			# On augmente son XP (avec le bonus d'intelligence)
+			var intelligence_bonus = 1 + (stats["intelligence"] - 1) * 0.1
+			spell.xp += round(amount * intelligence_bonus)
+			
+			# On vérifie s'il monte de niveau
+			if spell.xp >= spell.xp_to_next_level:
+				spell.level += 1
+				spell.xp = 0
+				# On augmente le coût en XP pour le prochain niveau
+				spell.xp_to_next_level = floor(spell.xp_to_next_level * 1.8)
+				var spell_name = SPELL_DATA[spell.id].name
+				print(spell_name + " a atteint le niveau " + str(spell.level) + " !")
+			
+			# On a trouvé et mis à jour le sort, on peut arrêter la boucle
+			break
 
 # --- Fonctions de Sauvegarde et Chargement ---
 
