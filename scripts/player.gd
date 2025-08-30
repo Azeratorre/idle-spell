@@ -11,7 +11,7 @@ var animation_speed: float = 0.15  # Temps en secondes entre chaque frame (150ms
 
 # --- Variables pour le combat ---
 var cast_timer: float = 0.0
-var cast_interval: float = 1.5 # Temps en secondes entre chaque sort (1500ms)
+var base_cast_interval: float = 1.5 # Temps de base en secondes
 var monster_target: Node2D = null
 
 # On pré-charge la scène du projectile pour pouvoir la créer rapidement
@@ -37,8 +37,12 @@ func _process(delta: float):
 	# S'il y a une cible valide (un monstre)
 	if is_instance_valid(monster_target):
 		cast_timer += delta
+		# On calcule le temps d'incantation réel en incluant le bonus de célérité
+		var celerity_bonus = 1 + (GameState.stats["celerity"] - 1) * 0.05
+		var actual_cast_interval = base_cast_interval / celerity_bonus
+		
 		# Si le temps d'incantation est écoulé
-		if cast_timer >= cast_interval:
+		if cast_timer >= actual_cast_interval:
 			fire_skill()
 			# On réinitialise le timer
 			cast_timer = 0.0

@@ -9,6 +9,7 @@ extends Node2D
 @onready var fast_travel_bar = $UI/MarginContainer/VBoxContainer/FastTravelBar
 @onready var player = $Player
 @onready var pause_menu = $UI/PauseMenu
+@onready var character_panel = $UI/CharacterPanel
 
 # Le monde du jeu, avec les informations sur les monstres
 var world = [
@@ -23,6 +24,10 @@ var current_monster = null
 
 # S'exécute lorsque la scène et tous ses nœuds sont prêts
 func _ready():
+	# On configure les menus pour qu'ils fonctionnent même en pause
+	pause_menu.process_mode = Node.PROCESS_MODE_WHEN_PAUSED
+	character_panel.process_mode = Node.PROCESS_MODE_WHEN_PAUSED
+
 	# Met à jour l'interface avec les données initiales de GameState
 	update_ui()
 	
@@ -34,11 +39,15 @@ func _ready():
 	# pour mettre à jour l'UI automatiquement quand l'essence change.
 	GameState.essence_updated.connect(on_essence_updated)
 	
-	# Connecte le clic du bouton d'amélioration
-	upgrade_power_button.pressed.connect(_on_upgrade_power_pressed)
+	# Connecte le clic du bouton d'amélioration de puissance
+	upgrade_power_button.pressed.connect(Callable(self, "_on_generic_upgrade_pressed").bind("power"))
 	
 	# Connecte le bouton "Reprendre" du menu pause
 	pause_menu.get_node("MenuButtons/ResumeButton").pressed.connect(toggle_pause)
+	# Connecte le bouton "Personnage"
+	pause_menu.get_node("MenuButtons/CharacterButton").pressed.connect(_on_character_button_pressed)
+	# Connecte le bouton "Retour" du panneau personnage
+	character_panel.get_node("MarginContainer/VBoxContainer/BackButton").pressed.connect(_on_back_to_pause_menu_pressed)
 
 
 # Gère les entrées clavier non gérées par l'UI
@@ -172,7 +181,48 @@ func _on_monster_died():
 
 # --- Fonctions connectées aux signaux ---
 
-func _on_upgrade_power_pressed():
-	if GameState.upgrade_stat("power"):
-		# Si l'amélioration a réussi, on met à jour l'UI
+func _on_character_button_pressed():
+	# On cache le menu pause et on affiche le panneau personnage
+	pause_menu.hide()
+	character_panel.show()
+	# On met à jour les informations du panneau
+	update_character_panel()
+
+func _on_back_to_pause_menu_pressed():
+	# On fait l'inverse
+	character_panel.hide()
+	pause_menu.show()
+
+func update_character_panel():
+	# On récupère le conteneur des stats
+	var stats_container = character_panel.get_node("MarginContainer/VBoxContainer/StatsContainer")
+	# On supprime les anciennes entrées
+	for child in stats_container.get_children():
+		child.queue_free()
+	
+	# On crée une nouvelle entrée pour chaque stat
+	for stat_name in GameState.stats:
+		var level = GameState.stats[stat_name]
+		var cost = floor(10 * pow(1.5, level - 1))
+		
+		# On crée un conteneur horizontal pour le label et le bouton
+		var hbox = HBoxContainer.new()
+		
+		var label = Label.new()
+		label.text = stat_name.capitalize() + ": " + str(level)
+		label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		
+		var button = Button.new()
+		button.text = "Améliorer (" + str(cost) + " E)"
+		# On connecte le bouton en passant le nom de la stat en argument
+		button.pressed.connect(Callable(self, "_on_generic_upgrade_pressed").bind(stat_name))
+		
+		hbox.add_child(label)
+		hbox.add_child(button)
+		stats_container.add_child(hbox)
+
+func _on_generic_upgrade_pressed(stat_name: String):
+	if GameState.upgrade_stat(stat_name):
+		# Si l'amélioration réussit, on met à jour l'UI principale et le panneau
 		update_ui()
+		update_character_panel()
