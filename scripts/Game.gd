@@ -10,6 +10,7 @@ extends Node2D
 @onready var player = $Player
 @onready var pause_menu = $UI/PauseMenu
 @onready var character_panel = $UI/CharacterPanel
+@onready var grimoire_panel = $UI/GrimoirePanel
 
 # Le monde du jeu, avec les informations sur les monstres
 var world = [
@@ -27,6 +28,7 @@ func _ready():
 	# On configure les menus pour qu'ils fonctionnent même en pause
 	pause_menu.process_mode = Node.PROCESS_MODE_WHEN_PAUSED
 	character_panel.process_mode = Node.PROCESS_MODE_WHEN_PAUSED
+	grimoire_panel.process_mode = Node.PROCESS_MODE_WHEN_PAUSED
 
 	# Met à jour l'interface avec les données initiales de GameState
 	update_ui()
@@ -46,8 +48,12 @@ func _ready():
 	pause_menu.get_node("MenuButtons/ResumeButton").pressed.connect(toggle_pause)
 	# Connecte le bouton "Personnage"
 	pause_menu.get_node("MenuButtons/CharacterButton").pressed.connect(_on_character_button_pressed)
+	# Connecte le bouton "Grimoire"
+	pause_menu.get_node("MenuButtons/GrimoireButton").pressed.connect(_on_grimoire_button_pressed)
 	# Connecte le bouton "Retour" du panneau personnage
 	character_panel.get_node("MarginContainer/VBoxContainer/BackButton").pressed.connect(_on_back_to_pause_menu_pressed)
+	# Connecte le bouton "Retour" du panneau grimoire
+	grimoire_panel.get_node("MarginContainer/VBoxContainer/BackButton").pressed.connect(_on_back_to_pause_menu_pressed)
 
 
 # Gère les entrées clavier non gérées par l'UI
@@ -189,8 +195,10 @@ func _on_character_button_pressed():
 	update_character_panel()
 
 func _on_back_to_pause_menu_pressed():
-	# On fait l'inverse
+	# On cache les deux panneaux (seul le visible sera affecté)
 	character_panel.hide()
+	grimoire_panel.hide()
+	# On affiche le menu pause principal
 	pause_menu.show()
 
 func update_character_panel():
@@ -226,3 +234,58 @@ func _on_generic_upgrade_pressed(stat_name: String):
 		# Si l'amélioration réussit, on met à jour l'UI principale et le panneau
 		update_ui()
 		update_character_panel()
+
+func _on_grimoire_button_pressed():
+	pause_menu.hide()
+	grimoire_panel.show()
+	update_grimoire_panel()
+
+func update_grimoire_panel():
+	var slots_container = grimoire_panel.get_node("MarginContainer/VBoxContainer/ActiveSlotsContainer")
+	var book_container = grimoire_panel.get_node("MarginContainer/VBoxContainer/SpellbookContainer")
+	
+	# Nettoyage
+	for child in slots_container.get_children(): child.queue_free()
+	for child in book_container.get_children(): child.queue_free()
+
+	# Affichage des emplacements actifs
+	for spell in GameState.spell_slots:
+		var label = Label.new()
+		label.custom_minimum_size = Vector2(50, 50)
+		label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		if spell != null:
+			var spell_data = GameState.SPELL_DATA[spell.id]
+			label.text = spell_data.symbol
+		else:
+			label.text = "[Vide]"
+		slots_container.add_child(label)
+
+	# Affichage des sorts appris
+	for spell in GameState.spellbook:
+		var spell_data = GameState.SPELL_DATA[spell.id]
+		var button = Button.new()
+		button.text = spell_data.symbol + " " + str(spell.level)
+		button.pressed.connect(Callable(self, "_on_equip_spell_pressed").bind(spell))
+		book_container.add_child(button)
+
+func _on_equip_spell_pressed(spell_to_equip):
+	# On cherche un emplacement vide
+	var empty_slot_index = GameState.spell_slots.find(null)
+	
+	if empty_slot_index != -1:
+		# On vérifie que le sort n'est pas déjà équipé
+		var is_already_equipped = false
+		for equipped_spell in GameState.spell_slots:
+			if equipped_spell != null and equipped_spell.id == spell_to_equip.id:
+				is_already_equipped = true
+				break
+		
+		if not is_already_equipped:
+			GameState.spell_slots[empty_slot_index] = spell_to_equip
+			print("Sort équipé : ", GameState.SPELL_DATA[spell_to_equip.id].name)
+			update_grimoire_panel()
+		else:
+			print("Ce sort est déjà équipé.")
+	else:
+		print("Aucun emplacement de sort libre.")

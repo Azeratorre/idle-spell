@@ -33,6 +33,23 @@ var next_spell_id: int = 0
 # Index de la zone actuelle
 var current_zone_index: int = 0
 
+# --- Données des sorts (similaire à skillTiers en JS) ---
+const SPELL_DATA = {
+	"spark": { "name": "Étincelle", "symbol": "✨", "base_damage": 5, "element": "Feu" },
+	"bubble": { "name": "Bulle", "symbol": "💧", "base_damage": 4, "element": "Eau" }
+}
+
+func _ready():
+	# Pour les tests, on commence avec un sort appris
+	if spellbook.is_empty():
+		var new_spell = {
+			"id": "spark",
+			"level": 1,
+			"xp": 0,
+			"xp_to_next_level": 100
+		}
+		spellbook.append(new_spell)
+
 # --- Fonctions de modification des données ---
 
 func add_essence(amount: int):

@@ -20,6 +20,14 @@ config/main_scene="res://scenes/Game.tscn"
 
 GameState="*res://scripts/GameState.gd"
 
+[display/window]
+
+size/viewport_width=1280
+size/viewport_height=720
+mode=3
+stretch/mode="canvas_items"
+stretch/aspect="keep"
+
 [rendering]
 
 renderer/rendering_method="gl_compatibility"
